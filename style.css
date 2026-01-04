@@ -168,3 +168,17 @@
 
         .page-content { display: none; }
         .page-content.active { display: block; }
+        
+        @media (max-width: 600px) {
+    .auth-zone {
+        position: static; /* 移除絕對定位 */
+        padding: 10px;
+        justify-content: center;
+        background: rgba(0,0,0,0.3);
+        width: 100%;
+    }
+    .header-bar h1 {
+        font-size: 1.8rem; /* 縮小手機版標題字體 */
+        letter-spacing: 5px;
+    }
+}
