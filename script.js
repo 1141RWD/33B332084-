@@ -181,8 +181,20 @@ let gameInitialized = false;
             if(!u || !p) return;
             
             if(authMode === 'register') {
+                // --- 新增：讀取信箱並檢查格式 ---
+                const e = document.getElementById('iptEmail').value.trim();
+                const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
+                
+                if (!gmailRegex.test(e)) {
+                    alert("請輸入正確的 @gmail.com 格式！");
+                    return;
+                }
+                // ----------------------------
+
                 if(users.find(x => x.u === u)) { alert("帳號已存在！"); return; }
-                users.push({u, p});
+                
+                // 註冊時將信箱也存入物件中
+                users.push({u, p, e}); 
                 localStorage.setItem('sysUsers', JSON.stringify(users));
                 alert("註冊成功！請登入");
                 openAuth('login');
@@ -385,48 +397,49 @@ let gameInitialized = false;
     // 社區
     renderCommunity?.();
 });
-// 確保手機版點擊流暢
-window.onload = () => {
-    initCarousel(); 
-    updateCityCheckboxes(); 
-    renderMarkets('marketList'); 
-};
-// --- 夜市彈珠王遊戲邏輯 (獨立函數) ---
+
+
+function adjustBet(amount) {
+    if (window.gameAdjustBet) window.gameAdjustBet(amount);
+}
+
 function initMarbleGame() {
     const canvas = document.getElementById("gameCanvas");
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
 
-    let totalScore = 1000, bet = 10, power = 0, isCharging = false, ballActive = false;
-    let ball = { x: 435, y: 680, vx: 0, vy: 0, r: 8 };
+    let totalScore = 1510, bet = 30, power = 0, isCharging = false;
+    let ball = { x: 435, y: 660, vx: 0, vy: 0, r: 8, active: false };
+    
+    // 實體隔板牆 (絕對不可穿透)
+    const railX = 410; 
+    let zones = [1, 2, 5, 0, 10, 2, 1];
 
+    function randomizeZones() {
+        const multipliers = [0, 1, 1, 2, 2, 5, 5, 10, 20];
+        zones = zones.map(() => multipliers[Math.floor(Math.random() * multipliers.length)]);
+    }
+
+    window.gameAdjustBet = function(amount) {
+        if (ball.active) return;
+        bet = Math.max(10, Math.min(totalScore, bet + amount));
+        updateUI();
+    };
+
+    // --- 密集釘子擋板：增加間距，讓球掉更快 ---
     const pegs = [];
-    for (let r = 0; r < 11; r++) {
-        let cols = (r % 2 === 0) ? 9 : 8;
+    const rows = 12; 
+    for (let r = 0; r < rows; r++) {
+        let cols = r % 2 === 0 ? 10 : 9;
+        let spacing = railX / (cols + 1);
         for (let c = 0; c < cols; c++) {
             pegs.push({
-                originX: c * 46 + (r % 2 === 0 ? 40 : 63),
-                originY: r * 48 + 160,
-                x: 0, y: 0, r: 4, shake: 0
+                x: (c + 1) * spacing + (r % 2 === 0 ? 0 : spacing/2) - 5,
+                y: r * 45 + 150, // 稍微拉開 y 軸，減少磨蹭時間
+                r: 4, active: 0
             });
         }
     }
-
-    const zones = [10, 5, 2, 0, 2, 5, 10];
-    const zoneWidth = 410 / zones.length;
-
-    window.addEventListener("keydown", e => {
-        // 只有在遊戲頁面啟動時才響應按鍵
-        if (document.getElementById('page-5').classList.contains('active')) {
-            if (e.code === "Space" && !ballActive) { e.preventDefault(); isCharging = true; }
-            if (e.code === "ArrowUp") { e.preventDefault(); bet = Math.min(totalScore, bet + 10); updateUI(); }
-            if (e.code === "ArrowDown") { e.preventDefault(); bet = Math.max(10, bet - 10); updateUI(); }
-        }
-    });
-    
-    window.addEventListener("keyup", e => {
-        if (e.code === "Space" && isCharging) { launch(); isCharging = false; }
-    });
 
     function updateUI() {
         document.getElementById("total-score").innerText = totalScore;
@@ -434,62 +447,88 @@ function initMarbleGame() {
         document.getElementById("power-bar").style.height = power + "%";
     }
 
-    function launch() {
-        if(totalScore < bet) { alert("餘額不足！"); return; }
+    const handleStart = (e) => { 
+        if(!ball.active && totalScore >= bet) { 
+            isCharging = true; 
+            randomizeZones(); 
+        } 
+        if(e && e.cancelable) e.preventDefault(); 
+    };
+    const handleEnd = () => { if(isCharging) { launchBall(); isCharging = false; } };
+
+    window.addEventListener("keydown", (e) => { if(e.code === "Space") handleStart(); });
+    window.addEventListener("keyup", (e) => { if(e.code === "Space") handleEnd(); });
+    canvas.addEventListener("mousedown", handleStart);
+    window.addEventListener("mouseup", handleEnd);
+
+    function launchBall() {
         totalScore -= bet;
-        ballActive = true;
-        ball.x = 435; ball.y = 680;
+        ball.active = true;
+        ball.x = 435; ball.y = 660;
         ball.vx = 0;
-        ball.vy = -(power / 4 + 16); 
+        ball.vy = -(power / 4 + 15); // 發射初速
         power = 0;
         updateUI();
     }
 
     function update() {
-        if (isCharging) { power = Math.min(100, power + 2.5); updateUI(); }
-        if (ballActive) {
-            ball.vy += 0.28;
-            ball.vx *= 0.995;
-            ball.x += ball.vx;
-            ball.y += ball.vy;
+        if (isCharging) {
+            power = Math.min(100, power + 3); // 蓄力條動態更新
+            updateUI();
+        }
 
-            // 頂部導軌
-            if (ball.y < 120) {
-                let centerX = 340, centerY = 120, radius = 100;
-                let dist = Math.hypot(ball.x - centerX, ball.y - centerY);
-                if (dist > radius && ball.x > 300) {
-                    let angle = Math.atan2(ball.y - centerY, ball.x - centerX);
-                    ball.x = centerX + Math.cos(angle) * radius;
-                    ball.y = centerY + Math.sin(angle) * radius;
-                    ball.vx -= 2.5; 
-                    ball.vy += 1;
+        if (ball.active) {
+            ball.vy += 0.45; // 加大重力 (0.3 -> 0.45)，讓球掉得更快！
+            ball.x += ball.vx; ball.y += ball.vy;
+
+            // 1. 實體隔板牆：x=410 (嚴格判定)
+            if (ball.y > 120) {
+                if (ball.x + ball.r > railX && ball.x < railX + 5 && ball.vx > 0) {
+                    ball.x = railX - ball.r; ball.vx *= -0.3;
+                } else if (ball.x - ball.r < railX && ball.x > railX - 5 && ball.vx < 0) {
+                    ball.x = railX + ball.r; ball.vx *= -0.3;
                 }
             }
 
-            if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -0.5; }
-            if (ball.x > 460 - ball.r) { ball.x = 460 - ball.r; ball.vx *= -0.5; }
-            if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -0.5; }
+            // 2. 頂部彎道
+            if (ball.y < 120 && ball.x > railX - 60) {
+                let cx = railX - 100, cy = 120, r = 100;
+                let d = Math.hypot(ball.x - cx, ball.y - cy);
+                if (d > r) {
+                    let angle = Math.atan2(ball.y - cy, ball.x - cx);
+                    ball.x = cx + Math.cos(angle) * r;
+                    ball.y = cy + Math.sin(angle) * r;
+                    ball.vx -= 2.5; ball.vy += 0.5;
+                }
+            }
 
+            // 3. 牆壁碰撞
+            if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -0.4; }
+            if (ball.x > canvas.width - ball.r) { ball.x = canvas.width - ball.r; ball.vx *= -0.4; }
+            if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -0.4; }
+
+            // 4. 釘子擋板碰撞 (降低彈性，增加掉落感)
             pegs.forEach(p => {
                 let dx = ball.x - p.x, dy = ball.y - p.y;
                 let dist = Math.hypot(dx, dy);
                 if (dist < ball.r + p.r) {
-                    p.shake = 10;
+                    p.active = 10;
                     let angle = Math.atan2(dy, dx);
-                    let speed = Math.hypot(ball.vx, ball.vy) * 0.8;
-                    ball.vx = Math.cos(angle + (Math.random()-0.5)*0.1) * (speed + 1.2);
-                    ball.vy = Math.sin(angle + (Math.random()-0.5)*0.1) * (speed + 1.2);
+                    let speed = Math.hypot(ball.vx, ball.vy) * 0.4; // 減少彈力(0.6 -> 0.4)，球掉更快
+                    ball.vx = Math.cos(angle) * (speed + 0.5);
+                    ball.vy = Math.sin(angle) * (speed + 0.5);
                     ball.x = p.x + Math.cos(angle) * (ball.r + p.r + 1);
                     ball.y = p.y + Math.sin(angle) * (ball.r + p.r + 1);
                 }
             });
 
-            if (ball.y > 700) {
-                if (ball.x < 410) {
-                    let idx = Math.floor(ball.x / zoneWidth);
-                    totalScore += bet * zones[idx];
+            // 5. 結算
+            if (ball.y > 690) {
+                if (ball.x < railX) {
+                    let zw = railX / zones.length;
+                    totalScore += bet * zones[Math.floor(ball.x / zw)];
                 }
-                ballActive = false;
+                ball.active = false;
                 updateUI();
             }
         }
@@ -498,50 +537,33 @@ function initMarbleGame() {
     function draw() {
         ctx.fillStyle = "#05050a";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // 裝飾軌道
-        ctx.strokeStyle = "#1a1a2e";
-        ctx.lineWidth = 15;
-        ctx.beginPath();
-        ctx.arc(340, 120, 100, Math.PI, Math.PI * 1.5);
-        ctx.stroke();
 
-        // 獎金區
+        // 畫底部分數
+        let zw = railX / zones.length;
         zones.forEach((z, i) => {
-            ctx.fillStyle = z === 0 ? "#333" : `hsl(${i * 45}, 80%, 50%)`;
-            ctx.globalAlpha = 0.15;
-            ctx.fillRect(i * zoneWidth, 660, zoneWidth, 60);
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = "#fff";
-            ctx.font = "bold 18px Arial";
-            ctx.fillText(z + "x", i * zoneWidth + zoneWidth/2 - 10, 700);
+            ctx.fillStyle = z === 0 ? "#111" : `hsl(${i * 45}, 65%, 30%)`;
+            ctx.fillRect(i * zw, 650, zw, 50);
+            ctx.fillStyle = "#fff"; ctx.font = "bold 16px Arial"; ctx.textAlign = "center";
+            ctx.fillText(z + "x", i * zw + zw/2, 685);
         });
 
-        // 釘子
+        // 畫實體隔板
+        ctx.strokeStyle = "#555"; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(railX, 700); ctx.lineTo(railX, 120); ctx.stroke();
+
+        // 畫釘子
         pegs.forEach(p => {
-            p.x = p.originX + (Math.random() - 0.5) * p.shake;
-            p.y = p.originY + (Math.random() - 0.5) * p.shake;
-            if (p.shake > 0) p.shake *= 0.8;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            ctx.fillStyle = p.shake > 1 ? "#fff" : "#00f2ff";
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = p.active > 0 ? "#00f2ff" : "#223";
+            ctx.fill(); if(p.active > 0) p.active--;
         });
 
-        // 彈珠
-        if (ballActive) {
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-            ctx.fillStyle = "#fff";
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = "#fff";
-            ctx.fill();
-            ctx.shadowBlur = 0;
+        // 畫彈珠
+        if (ball.active || isCharging) {
+            ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+            ctx.fillStyle = "#fff"; ctx.shadowBlur = 10; ctx.shadowColor = "#fff";
+            ctx.fill(); ctx.shadowBlur = 0;
         }
-
-        // 通道
-        ctx.fillStyle = "#111";
-        ctx.fillRect(410, 120, 10, 600);
 
         update();
         requestAnimationFrame(draw);

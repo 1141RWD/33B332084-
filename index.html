@@ -74,21 +74,35 @@
 </div>
 
 <div id="page-5" class="page-content">
-        <div class="game-wrapper">
-            <div class="game-glass-panel">
-                <div class="game-title">彈珠大王 PRO</div>
-                <div class="game-label">CREDITS</div>
-                <div class="game-value" id="total-score">1000</div>
-                <div class="game-label">CURRENT BET</div>
-                <div class="game-value" style="color:#ffcc00; text-shadow:0 0 10px #ffcc00" id="bet-amount">10</div>
-                
-                <div class="game-label">SPRING POWER</div>
-                <div class="game-power-bg"><div id="power-bar" style="height: 0%"></div></div>
-                <p style="color: #888; font-size: 12px; margin-top: 15px;">[空白鍵] 發射<br>[上下方向鍵] 調整倍率</p>
+    <div class="game-wrapper">
+        <div class="game-glass-panel">
+            <div class="game-title">經典夜市彈珠</div>
+            
+            <div class="game-label">目前積分</div>
+            <div class="game-value" id="total-score">1510</div>
+            
+            <div class="game-label">調整下注</div>
+            <div class="bet-controls">
+                <button class="bet-btn-lg" onclick="adjustBet(10)">加注 ▲</button>
+                <div class="game-value" style="color:#f1c40f; margin: 10px 0;" id="bet-amount">30</div>
+                <button class="bet-btn-lg" onclick="adjustBet(-10)">減注 ▼</button>
             </div>
-            <canvas id="gameCanvas" width="460" height="720"></canvas>
+            
+            <div class="game-label">蓄力進度</div>
+            <div class="game-power-bg">
+                <div id="power-bar"></div>
+            </div>
+            
+            <p style="color: #8899a6; font-size: 13px; margin-top: 20px; line-height: 1.6;">
+                【操作指南】<br>
+                1. 長按空白鍵或右軌道蓄力<br>
+                2. 放開即發射彈珠
+            </p>
         </div>
+        
+        <canvas id="gameCanvas" width="460" height="700"></canvas>
     </div>
+</div>
 
 <dialog id="mapDialog">
         <div style="background:#5a6a7a; color:white; padding:15px; display:flex; justify-content:space-between; align-items:center;">
