@@ -217,6 +217,46 @@ let gameInitialized = false;
             } else { alert("帳號密碼錯誤！"); }
         }
 
+
+// --- 在你的 switchTab 函數最前面加入這幾行 ---
+function switchTab(i) {
+    // 增加過場效果
+    const pages = document.querySelectorAll('.page-content');
+    pages.forEach(p => {
+        p.style.opacity = '0';
+        p.style.transform = 'translateY(20px)';
+        p.style.transition = '0.4s';
+    });
+
+    // 原有的邏輯...
+    document.querySelectorAll('.tab-item').forEach((t, idx) => t.classList.toggle('active', idx === i));
+    document.querySelectorAll('.page-content').forEach((p, idx) => {
+        const isActive = idx === i;
+        p.classList.toggle('active', isActive);
+        if(isActive) {
+            setTimeout(() => {
+                p.style.opacity = '1';
+                p.style.transform = 'translateY(0)';
+            }, 50);
+        }
+    });
+
+    // 捲動回頂部讓使用者體驗更好
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // 遊戲初始化邏輯 (保留你原本的)
+    if(i === 5) {
+        if(!gameInitialized) {
+            initMarbleGame();
+            gameInitialized = true;
+        }
+        return; 
+    }
+    
+    // ... 其餘你原本的 guard 和 render 程式碼 ...
+}
+
+
         // --- Tab 切換 ---
         function switchTab(i) {
     document.querySelectorAll('.tab-item').forEach((t, idx) => t.classList.toggle('active', idx === i));
@@ -555,3 +595,95 @@ function initMarbleGame() {
     }
     draw();
 }
+
+// 🧋 珍奶點擊與珍珠粒子特效
+document.addEventListener("mousedown", (e) => {
+    // 1. 產生點擊當下的珍奶圖案
+    const boba = document.createElement("div");
+    boba.textContent = "🧋";
+    boba.style.cssText = `
+        position: fixed;
+        left: ${e.clientX}px;
+        top: ${e.clientY}px;
+        pointer-events: none;
+        font-size: 40px;
+        z-index: 10000;
+        transform: translate(-50%, -50%);
+        animation: bobaPop 0.5s ease-out forwards;
+    `;
+    document.body.appendChild(boba);
+    setTimeout(() => boba.remove(), 500);
+
+    // 2. 噴射出 5-8 顆小珍珠粒子
+    for (let i = 0; i < 8; i++) {
+        const pearl = document.createElement("div");
+        pearl.textContent = "●"; // 或者使用 "⚫"
+        pearl.style.cssText = `
+            position: fixed;
+            left: ${e.clientX}px;
+            top: ${e.clientY}px;
+            pointer-events: none;
+            font-size: ${Math.random() * 10 + 10}px;
+            color: #b44e00bc; /* 珍珠的深棕色 */
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+        `;
+        
+        document.body.appendChild(pearl);
+
+        // 隨機噴散方向
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = Math.random() * 100 + 50;
+        const tx = Math.cos(angle) * velocity;
+        const ty = Math.sin(angle) * velocity;
+
+        // 使用 Web Animations API 執行珍珠噴散
+        pearl.animate([
+            { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+            { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(0)`, opacity: 0 }
+        ], {
+            duration: 600 + Math.random() * 400,
+            easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+            fill: 'forwards'
+        });
+
+        setTimeout(() => pearl.remove(), 1000);
+    }
+});
+
+// 🧋 珍珠移動尾巴特效
+let lastPearlTime = 0;
+
+document.addEventListener("mousemove", (e) => {
+    const now = Date.now();
+    if (now - lastPearlTime < 30) return; // 控制產生頻率
+    lastPearlTime = now;
+
+    const pearl = document.createElement("div");
+    // 使用黑色圓點代表珍珠
+    pearl.textContent = "●"; 
+    pearl.style.cssText = `
+        position: fixed;
+        left: ${e.clientX}px;
+        top: ${e.clientY}px;
+        pointer-events: none;
+        font-size: ${Math.random() * 10 + 10}px;
+        color: #835e42ff; /* 珍珠深棕色 */
+        z-index: 99999;
+        transform: translate(-50%, -50%);
+        opacity: 0.8;
+    `;
+
+    document.body.appendChild(pearl);
+
+    // 珍珠自然下墜並消失的動畫
+    const animation = pearl.animate([
+        { transform: 'translate(-50%, -50%) scale(1)', opacity: 0.8 },
+        { transform: `translate(-50%, ${window.innerHeight * 0.1}px) scale(0)`, opacity: 0 }
+    ], {
+        duration: 800,
+        easing: 'ease-in'
+    });
+
+    animation.onfinish = () => pearl.remove();
+});

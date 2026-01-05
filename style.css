@@ -4,6 +4,8 @@
             background-color: #1a2634; /* 網頁身體深灰藍色 */
             color: #333; margin: 0; padding: 0;
             display: flex; flex-direction: column; min-height: 100vh;
+            /* ⭐ 珍珠奶茶滑鼠游標 ⭐ */
+            cursor: url("boba.png") 16 16, auto;
         }
 
         /* --- Header 標題區 --- */
@@ -352,4 +354,34 @@
     }
     .game-title { grid-column: span 2; text-align: center; }
     .game-power-bg { height: 100px; grid-column: span 2; }
+}
+
+/* 珍奶跳出的動畫 */
+@keyframes bobaPop {
+    0% { transform: translate(-50%, -50%) scale(0) rotate(-20deg); opacity: 0; }
+    50% { transform: translate(-50%, -120%) scale(1.5) rotate(10deg); opacity: 1; }
+    100% { transform: translate(-50%, -150%) scale(1.2); opacity: 0; }
+}
+
+/* --- 核心基礎樣式修改 --- */
+body, 
+button, 
+input, 
+select, 
+a, 
+.tab-item, 
+.market-card, 
+.star-btn, 
+.edit-btn, 
+.del-btn { 
+    /* 強制所有可互動元素使用珍奶游標，並加上 !important 確保覆蓋瀏覽器預設 */
+    cursor: url("boba.png") 16 16, auto !important; 
+}
+
+/* 珍珠粒子的基礎樣式（確保動畫平滑） */
+@keyframes pearlFade {
+    to {
+        transform: translate(-50%, 20px) scale(0);
+        opacity: 0;
+    }
 }
