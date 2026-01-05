@@ -405,18 +405,18 @@ function adjustBet(amount) {
 
 function initMarbleGame() {
     const canvas = document.getElementById("gameCanvas");
+    const launchBtn = document.getElementById("mobile-launch-btn");
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
 
     let totalScore = 1510, bet = 30, power = 0, isCharging = false;
     let ball = { x: 435, y: 660, vx: 0, vy: 0, r: 8, active: false };
     
-    // 實體隔板牆 (絕對不可穿透)
     const railX = 410; 
     let zones = [1, 2, 5, 0, 10, 2, 1];
 
     function randomizeZones() {
-        const multipliers = [0, 1, 1, 2, 2, 5, 5, 10, 20];
+        const multipliers = [0, 1, 1, 2, 2, 5, 10, 15, 20];
         zones = zones.map(() => multipliers[Math.floor(Math.random() * multipliers.length)]);
     }
 
@@ -426,18 +426,12 @@ function initMarbleGame() {
         updateUI();
     };
 
-    // --- 密集釘子擋板：增加間距，讓球掉更快 ---
     const pegs = [];
-    const rows = 12; 
-    for (let r = 0; r < rows; r++) {
+    for (let r = 0; r < 13; r++) {
         let cols = r % 2 === 0 ? 10 : 9;
         let spacing = railX / (cols + 1);
         for (let c = 0; c < cols; c++) {
-            pegs.push({
-                x: (c + 1) * spacing + (r % 2 === 0 ? 0 : spacing/2) - 5,
-                y: r * 45 + 150, // 稍微拉開 y 軸，減少磨蹭時間
-                r: 4, active: 0
-            });
+            pegs.push({ x: (c + 1) * spacing + (r % 2 === 0 ? 0 : spacing/2) - 5, y: r * 42 + 150, r: 4, active: 0 });
         }
     }
 
@@ -447,74 +441,68 @@ function initMarbleGame() {
         document.getElementById("power-bar").style.height = power + "%";
     }
 
-    const handleStart = (e) => { 
-        if(!ball.active && totalScore >= bet) { 
-            isCharging = true; 
-            randomizeZones(); 
-        } 
-        if(e && e.cancelable) e.preventDefault(); 
+    const handleStart = (e) => {
+        if(!ball.active && totalScore >= bet) {
+            isCharging = true;
+            randomizeZones();
+        }
+        if(e) e.preventDefault();
     };
     const handleEnd = () => { if(isCharging) { launchBall(); isCharging = false; } };
 
+    launchBtn.addEventListener("touchstart", handleStart);
+    launchBtn.addEventListener("touchend", handleEnd);
+    launchBtn.addEventListener("mousedown", handleStart);
+    window.addEventListener("mouseup", handleEnd);
+    
     window.addEventListener("keydown", (e) => { if(e.code === "Space") handleStart(); });
     window.addEventListener("keyup", (e) => { if(e.code === "Space") handleEnd(); });
-    canvas.addEventListener("mousedown", handleStart);
-    window.addEventListener("mouseup", handleEnd);
 
     function launchBall() {
         totalScore -= bet;
         ball.active = true;
-        ball.x = 435; ball.y = 660;
-        ball.vx = 0;
-        ball.vy = -(power / 4 + 15); // 發射初速
+        ball.x = 435; 
+        ball.y = 660; 
+        ball.vx = 0; // 發射初期保持垂直
+        ball.vy = -(power / 4 + 18); 
         power = 0;
         updateUI();
     }
 
     function update() {
-        if (isCharging) {
-            power = Math.min(100, power + 3); // 蓄力條動態更新
-            updateUI();
-        }
+        if (isCharging) { power = Math.min(100, power + 2.5); updateUI(); }
 
         if (ball.active) {
-            ball.vy += 0.45; // 加大重力 (0.3 -> 0.45)，讓球掉得更快！
-            ball.x += ball.vx; ball.y += ball.vy;
+            ball.vy += 0.35; // 重力
+            ball.x += ball.vx; 
+            ball.y += ball.vy;
 
-            // 1. 實體隔板牆：x=410 (嚴格判定)
+            // --- 核心改動：頂部弧線引導 ---
+            if (ball.y < 80 && ball.x > railX - 20) {
+                // 當球接近頂部，模擬弧形牆壁，將垂直動能轉化為向左的水平動能
+                ball.vx -= 0.6; 
+                ball.vy *= 0.95;
+            }
+
+            // 實體隔板反彈
             if (ball.y > 120) {
-                if (ball.x + ball.r > railX && ball.x < railX + 5 && ball.vx > 0) {
-                    ball.x = railX - ball.r; ball.vx *= -0.3;
-                } else if (ball.x - ball.r < railX && ball.x > railX - 5 && ball.vx < 0) {
-                    ball.x = railX + ball.r; ball.vx *= -0.3;
-                }
+                if (ball.x + ball.r > railX && ball.x < railX + 5) { ball.x = railX - ball.r; ball.vx *= -0.5; }
+                else if (ball.x - ball.r < railX && ball.x > railX - 5) { ball.x = railX + ball.r; ball.vx *= -0.5; }
             }
 
-            // 2. 頂部彎道
-            if (ball.y < 120 && ball.x > railX - 60) {
-                let cx = railX - 100, cy = 120, r = 100;
-                let d = Math.hypot(ball.x - cx, ball.y - cy);
-                if (d > r) {
-                    let angle = Math.atan2(ball.y - cy, ball.x - cx);
-                    ball.x = cx + Math.cos(angle) * r;
-                    ball.y = cy + Math.sin(angle) * r;
-                    ball.vx -= 2.5; ball.vy += 0.5;
-                }
-            }
-
-            // 3. 牆壁碰撞
-            if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -0.4; }
-            if (ball.x > canvas.width - ball.r) { ball.x = canvas.width - ball.r; ball.vx *= -0.4; }
+            // 頂部與邊界反彈
             if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -0.4; }
+            if (ball.x > canvas.width - ball.r) { ball.x = canvas.width - ball.r; ball.vx *= -0.5; }
+            if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -0.5; }
 
-            // 4. 釘子擋板碰撞 (降低彈性，增加掉落感)
+            // 釘子碰撞 (圓周角度算法)
             pegs.forEach(p => {
                 let dx = ball.x - p.x, dy = ball.y - p.y;
                 let dist = Math.hypot(dx, dy);
                 if (dist < ball.r + p.r) {
                     p.active = 10;
                     let angle = Math.atan2(dy, dx);
-                    let speed = Math.hypot(ball.vx, ball.vy) * 0.4; // 減少彈力(0.6 -> 0.4)，球掉更快
+                    let speed = Math.hypot(ball.vx, ball.vy) * 0.65; // 彈力係數
                     ball.vx = Math.cos(angle) * (speed + 0.5);
                     ball.vy = Math.sin(angle) * (speed + 0.5);
                     ball.x = p.x + Math.cos(angle) * (ball.r + p.r + 1);
@@ -522,11 +510,14 @@ function initMarbleGame() {
                 }
             });
 
-            // 5. 結算
-            if (ball.y > 690) {
+            // 結算
+            if (ball.y > 700) {
                 if (ball.x < railX) {
                     let zw = railX / zones.length;
-                    totalScore += bet * zones[Math.floor(ball.x / zw)];
+                    let index = Math.floor(ball.x / zw);
+                    if (index >= 0 && index < zones.length) {
+                        totalScore += bet * zones[index];
+                    }
                 }
                 ball.active = false;
                 updateUI();
@@ -537,34 +528,28 @@ function initMarbleGame() {
     function draw() {
         ctx.fillStyle = "#05050a";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // 畫底部分數
+        
         let zw = railX / zones.length;
         zones.forEach((z, i) => {
-            ctx.fillStyle = z === 0 ? "#111" : `hsl(${i * 45}, 65%, 30%)`;
-            ctx.fillRect(i * zw, 650, zw, 50);
+            ctx.fillStyle = `hsl(${i * 45}, 60%, 25%)`;
+            ctx.fillRect(i * zw, 660, zw, 40);
             ctx.fillStyle = "#fff"; ctx.font = "bold 16px Arial"; ctx.textAlign = "center";
-            ctx.fillText(z + "x", i * zw + zw/2, 685);
+            ctx.fillText(z + "x", i * zw + zw/2, 688);
         });
 
-        // 畫實體隔板
-        ctx.strokeStyle = "#555"; ctx.lineWidth = 5;
+        ctx.strokeStyle = "#555"; ctx.lineWidth = 6;
         ctx.beginPath(); ctx.moveTo(railX, 700); ctx.lineTo(railX, 120); ctx.stroke();
 
-        // 畫釘子
         pegs.forEach(p => {
             ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            ctx.fillStyle = p.active > 0 ? "#00f2ff" : "#223";
+            ctx.fillStyle = p.active > 0 ? "#00f2ff" : "#222";
             ctx.fill(); if(p.active > 0) p.active--;
         });
 
-        // 畫彈珠
         if (ball.active || isCharging) {
             ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-            ctx.fillStyle = "#fff"; ctx.shadowBlur = 10; ctx.shadowColor = "#fff";
-            ctx.fill(); ctx.shadowBlur = 0;
+            ctx.fillStyle = "#fff"; ctx.fill();
         }
-
         update();
         requestAnimationFrame(draw);
     }
